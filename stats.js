@@ -232,12 +232,39 @@ config.configFile(process.argv[2], function (config) {
           l.log(metrics[midx].toString());
         }
 
-        var indexOfFirstColon = metrics[midx].toString().indexOf(":");
-        var mKey = metrics[midx].toString(0,indexOfFirstColon);
-        var mValue = metrics[midx].toString(indexOfFirstColon+1);
-        var bits = [mKey, mValue];
+        var mKey = metrics[midx].toString();
+        var mValue = "1";
+        var indexOfFirstColon = mKey.indexOf(":");
+        if (indexOfFirstColon > 0) {
+          mKey = metrics[midx].toString().substr(0,indexOfFirstColon);
+        }
+        if (indexOfFirstColon < metrics[midx].toString().length - 1) {
+          mValue = metrics[midx].toString().substr(indexOfFirstColon+1);
+        }
 
-        var key = sanitizeKeyName(bits.shift());
+        var sampleRate = 1;
+        var fields = mValue.split("|");
+        if (!helpers.is_valid_packet(fields)) {
+            l.log('Bad line: ' + fields + ' in msg "' + metrics[midx] +'"');
+            counters[bad_lines_seen]++;
+            stats.messages.bad_lines_seen++;
+            continue;
+        }
+
+        var originKey = sanitizeKeyName(mKey);
+        var key = originKey;
+        var tags = "";
+
+        if (fields[2]) {
+          if (fields[2][0]==='@') {
+            sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
+          } else if (fields[2][0]==='#') {
+              // #tagName1:tagValue1,tagName2:tagValue2,...
+              tags = fields[2][0].substr(1).replace(/:/g, '=').replace(/,/g, ';');
+              key = originKey+";"+tags;
+              // l.log("key with tags: "+key);
+          }
+        }
 
         if (keyFlushInterval > 0) {
           if (! keyCounter[key]) {
@@ -246,52 +273,37 @@ config.configFile(process.argv[2], function (config) {
           keyCounter[key] += 1;
         }
 
-        if (bits.length === 0) {
-          bits.push("1");
-        }
-
-        for (var i = 0; i < bits.length; i++) {
-          var sampleRate = 1;
-          var fields = bits[i].split("|");
-          if (!helpers.is_valid_packet(fields)) {
-              l.log('Bad line: ' + fields + ' in msg "' + metrics[midx] +'"');
-              counters[bad_lines_seen]++;
-              stats.messages.bad_lines_seen++;
-              continue;
+        var metric_type = fields[1].trim();
+        if (metric_type === "ms") {
+          if (! timers[key]) {
+            timers[key] = [];
+            timer_counters[key] = 0;
           }
-          if (fields[2]) {
-            if (fields[2][0]==='@') {
-              sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
-            } else if (fields[2][0]==='#') {
-                // tagName=tagValue
-            }
-          }
-
-          var metric_type = fields[1].trim();
-          if (metric_type === "ms") {
-            if (! timers[key]) {
-              timers[key] = [];
-              timer_counters[key] = 0;
-            }
-            timers[key].push(Number(fields[0] || 0));
-            timer_counters[key] += (1 / sampleRate);
-          } else if (metric_type === "g") {
-            if (gauges[key] && fields[0].match(/^[-+]/)) {
-              gauges[key] += Number(fields[0] || 0);
-            } else {
-              gauges[key] = Number(fields[0] || 0);
-            }
-          } else if (metric_type === "s") {
-            if (! sets[key]) {
-              sets[key] = new set.Set();
-            }
-            sets[key].insert(fields[0] || '0');
+          timers[key].push(Number(fields[0] || 0));
+          timer_counters[key] += (1 / sampleRate);
+        } else if (metric_type === "g") {
+          if (gauges[key] && fields[0].match(/^[-+]/)) {
+            gauges[key] += Number(fields[0] || 0);
           } else {
-            if (! counters[key]) {
-              counters[key] = 0;
-            }
-            counters[key] += Number(fields[0] || 1) * (1 / sampleRate);
+            gauges[key] = Number(fields[0] || 0);
           }
+        } else if (metric_type === "s") {
+          if (! sets[key]) {
+            sets[key] = new set.Set();
+          }
+          sets[key].insert(fields[0] || '0');
+        } else if (metric_type === "h") {
+          var histogram_key = originKey+".histogram.bin_"+fields[0]+";"+tags;
+          // l.log("histogram key: "+histogram_key);
+          if (! counters[histogram_key]) {
+            counters[histogram_key] = 0;
+          }
+          counters[histogram_key] += Number(1) * (1 / sampleRate);
+        } else {
+          if (! counters[key]) {
+            counters[key] = 0;
+          }
+          counters[key] += Number(fields[0] || 1) * (1 / sampleRate);
         }
       }
 
