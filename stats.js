@@ -231,7 +231,12 @@ config.configFile(process.argv[2], function (config) {
         if (config.dumpMessages) {
           l.log(metrics[midx].toString());
         }
-        var bits = metrics[midx].toString().split(':');
+
+        var indexOfFirstColon = metrics[midx].toString().indexOf(":");
+        var mKey = metrics[midx].toString(0,indexOfFirstColon);
+        var mValue = metrics[midx].toString(indexOfFirstColon+1);
+        var bits = [mKey, mValue];
+
         var key = sanitizeKeyName(bits.shift());
 
         if (keyFlushInterval > 0) {
@@ -255,7 +260,11 @@ config.configFile(process.argv[2], function (config) {
               continue;
           }
           if (fields[2]) {
-            sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
+            if (fields[2][0]==='@') {
+              sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
+            } else if (fields[2][0]==='#') {
+                // tagName=tagValue
+            }
           }
 
           var metric_type = fields[1].trim();
