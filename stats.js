@@ -175,6 +175,11 @@ function sanitizeKeyName(key) {
   }
 }
 
+function sanitizeTags(tags) {
+  return tags.replace(/\s+/g, '-')
+             .replace(/\./g, '_');
+}
+
 function getFlushTimeout(interval) {
     return interval - (new Date().getTime() - startup_time * 1000) % flushInterval
 }
@@ -260,8 +265,9 @@ config.configFile(process.argv[2], function (config) {
             sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
           } else if (fields[2][0]==='#') {
               // #tagName1:tagValue1,tagName2:tagValue2,...
+              // Graphite tags: ;tagName1=tagValue1;tagName2=tagValue2;...
               tags = fields[2].substr(1).replace(/:/g, '=').replace(/,/g, ';');
-              key = originKey+";"+tags;
+              key = originKey+";"+sanitizeTags(tags);
               // l.log("key with tags: "+key);
           }
         }
