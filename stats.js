@@ -177,6 +177,7 @@ function sanitizeKeyName(key) {
 
 function sanitizeTags(tags) {
   return tags.replace(/\s+/g, '-')
+             .replace(/\//g, '-')
              .replace(/\./g, '_');
 }
 
