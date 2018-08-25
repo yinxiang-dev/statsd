@@ -267,8 +267,8 @@ config.configFile(process.argv[2], function (config) {
           } else if (fields[2][0]==='#') {
               // #tagName1:tagValue1,tagName2:tagValue2,...
               // Graphite tags: ;tagName1=tagValue1;tagName2=tagValue2;...
-              tags = fields[2].substr(1).replace(/:/g, '=').replace(/,/g, ';');
-              key = originKey+";"+sanitizeTags(tags);
+              tags = sanitizeTags(fields[2].substr(1).replace(/:/g, '=').replace(/,/g, ';'));
+              key = originKey+";"+tags;
               // l.log("key with tags: "+key);
           }
         }
